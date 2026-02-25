@@ -1,0 +1,76 @@
+name: Notify Cal on Task Changes
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'data/tasks.json'
+  workflow_dispatch:
+
+jobs:
+  notify-cal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect task changes
+        id: detect
+        run: |
+          git show HEAD:data/tasks.json > current_tasks.json
+          git show HEAD~1:data/tasks.json > previous_tasks.json 2>/dev/null || echo '{}' > previous_tasks.json
+          
+          echo "Checking for new tasks in progress..."
+          
+          NEW_IN_PROGRESS=$(jq -s '
+            .[0].tasks as $prev |
+            .[1].tasks as $curr |
+            $curr | map(select(.status == "in_progress")) |
+            map(.id as $id | select($prev | map(.id) | contains([$id]) | not or 
+              ($prev[] | select(.id == $id) | .status) != "in_progress"))
+          ' previous_tasks.json current_tasks.json)
+          
+          echo "new_in_progress=$NEW_IN_PROGRESS" >> $GITHUB_OUTPUT
+          
+          COUNT=$(echo "$NEW_IN_PROGRESS" | jq 'length')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          
+          ALL_TASKS=$(jq -c '.tasks' current_tasks.json)
+          echo "all_tasks=$ALL_TASKS" >> $GITHUB_OUTPUT
+          
+      - name: Send notification to Cal (if new tasks in progress)
+        if: steps.detect.outputs.count > 0
+        env:
+          OPENCLAW_URL: ${{ secrets.OPENCLAW_WEBHOOK_URL }}
+          OPENCLAW_TOKEN: ${{ secrets.OPENCLAW_TOKEN }}
+        run: |
+          NEW_TASKS='${{ steps.detect.outputs.new_in_progress }}'
+          
+          echo "$NEW_TASKS" | jq -c '.[]' | while read task; do
+            TASK_ID=$(echo "$task" | jq -r '.id')
+            TASK_TITLE=$(echo "$task" | jq -r '.title')
+            
+            echo "Notifying Cal about task: $TASK_ID - $TASK_TITLE"
+            
+            curl -X POST "$OPENCLAW_URL" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $OPENCLAW_TOKEN" \
+              -d "$task" \
+              --fail || echo "Failed to notify about $TASK_ID"
+          done
+          
+      - name: Send full sync (always run)
+        env:
+          OPENCLAW_URL: ${{ secrets.OPENCLAW_WEBHOOK_URL }}
+          OPENCLAW_TOKEN: ${{ secrets.OPENCLAW_TOKEN }}
+        run: |
+          ALL_TASKS='${{ steps.detect.outputs.all_tasks }}'
+          
+          curl -X POST "$OPENCLAW_URL" \
+            -H "Content-Type: application/json" \
+            -H "X-Event-Type: tasks-sync" \
+            -H "Authorization: Bearer $OPENCLAW_TOKEN" \
+            -d "{\"tasks\": $ALL_TASKS, \"source\": \"github_actions\"}" \
+            --fail || echo "Failed to sync tasks"
