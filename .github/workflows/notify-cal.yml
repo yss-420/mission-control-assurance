@@ -19,58 +19,84 @@ jobs:
       - name: Detect task changes
         id: detect
         run: |
-          git show HEAD:data/tasks.json > current_tasks.json
-          git show HEAD~1:data/tasks.json > previous_tasks.json 2>/dev/null || echo '{}' > previous_tasks.json
+          git show HEAD:data/tasks.json > /tmp/current_tasks.json
+          git show HEAD~1:data/tasks.json > /tmp/previous_tasks.json 2>/dev/null || echo '{"tasks":[]}' > /tmp/previous_tasks.json
           
-          echo "Checking for new tasks in progress..."
+          echo "Checking for new in-progress tasks..."
           
-          NEW_IN_PROGRESS=$(jq -s '
+          jq -s '
             .[0].tasks as $prev |
             .[1].tasks as $curr |
             $curr | map(select(.status == "in_progress")) |
-            map(.id as $id | select($prev | map(.id) | contains([$id]) | not or 
-              ($prev[] | select(.id == $id) | .status) != "in_progress"))
-          ' previous_tasks.json current_tasks.json)
+            map(.id as $id | 
+              select(
+                ($prev | map(.id) | contains([$id]) | not) or 
+                (($prev[] | select(.id == $id) | .status) != "in_progress")
+              )
+            )
+          ' /tmp/previous_tasks.json /tmp/current_tasks.json > /tmp/new_in_progress.json
           
-          echo "new_in_progress=$NEW_IN_PROGRESS" >> $GITHUB_OUTPUT
-          
-          COUNT=$(echo "$NEW_IN_PROGRESS" | jq 'length')
+          COUNT=$(jq 'length' /tmp/new_in_progress.json)
           echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "Found $COUNT new in-progress tasks"
           
-          ALL_TASKS=$(jq -c '.tasks' current_tasks.json)
-          echo "all_tasks=$ALL_TASKS" >> $GITHUB_OUTPUT
+          jq -c '.tasks' /tmp/current_tasks.json > /tmp/all_tasks.json
+          echo "all_tasks=$(cat /tmp/all_tasks.json)" >> $GITHUB_OUTPUT
           
-      - name: Send notification to Cal (if new tasks in progress)
+      - name: Send individual task notifications
         if: steps.detect.outputs.count > 0
         env:
           OPENCLAW_URL: ${{ secrets.OPENCLAW_WEBHOOK_URL }}
-          OPENCLAW_TOKEN: ${{ secrets.OPENCLAW_TOKEN }}
         run: |
-          NEW_TASKS='${{ steps.detect.outputs.new_in_progress }}'
+          echo "Sending notifications for new in-progress tasks..."
           
-          echo "$NEW_TASKS" | jq -c '.[]' | while read task; do
-            TASK_ID=$(echo "$task" | jq -r '.id')
-            TASK_TITLE=$(echo "$task" | jq -r '.title')
+          NEW_TASKS=$(cat /tmp/new_in_progress.json)
+          LENGTH=$(echo "$NEW_TASKS" | jq 'length')
+          
+          for i in $(seq 0 $((LENGTH - 1))); do
+            TASK=$(echo "$NEW_TASKS" | jq -c ".[$i]")
+            TASK_ID=$(echo "$TASK" | jq -r '.id')
+            TASK_TITLE=$(echo "$TASK" | jq -r '.title')
             
             echo "Notifying Cal about task: $TASK_ID - $TASK_TITLE"
             
-            curl -X POST "$OPENCLAW_URL" \
+            echo "$TASK" > /tmp/task_to_send.json
+            
+            HTTP_CODE=$(curl -s -o /tmp/curl_response.txt -w "%{http_code}" \
+              -X POST "$OPENCLAW_URL" \
               -H "Content-Type: application/json" \
-              -H "Authorization: Bearer $OPENCLAW_TOKEN" \
-              -d "$task" \
-              --fail || echo "Failed to notify about $TASK_ID"
+              -d @/tmp/task_to_send.json)
+            
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ]; then
+              echo "✅ Successfully notified Cal about $TASK_ID"
+            else
+              echo "❌ Failed to notify about $TASK_ID (HTTP $HTTP_CODE)"
+              echo "Response: $(cat /tmp/curl_response.txt)"
+            fi
           done
           
-      - name: Send full sync (always run)
+      - name: Send full task sync
         env:
           OPENCLAW_URL: ${{ secrets.OPENCLAW_WEBHOOK_URL }}
-          OPENCLAW_TOKEN: ${{ secrets.OPENCLAW_TOKEN }}
         run: |
-          ALL_TASKS='${{ steps.detect.outputs.all_tasks }}'
+          echo "Sending full task sync..."
           
-          curl -X POST "$OPENCLAW_URL" \
+          ALL_TASKS=$(cat /tmp/all_tasks.json)
+          SYNC_PAYLOAD=$(jq -n \
+            --argjson tasks "$ALL_TASKS" \
+            '{tasks: $tasks, source: "github_actions", event: "tasks_sync"}')
+          
+          echo "$SYNC_PAYLOAD" > /tmp/sync_payload.json
+          
+          HTTP_CODE=$(curl -s -o /tmp/sync_response.txt -w "%{http_code}" \
+            -X POST "$OPENCLAW_URL" \
             -H "Content-Type: application/json" \
             -H "X-Event-Type: tasks-sync" \
-            -H "Authorization: Bearer $OPENCLAW_TOKEN" \
-            -d "{\"tasks\": $ALL_TASKS, \"source\": \"github_actions\"}" \
-            --fail || echo "Failed to sync tasks"
+            -d @/tmp/sync_payload.json)
+          
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ]; then
+            echo "✅ Full sync completed"
+          else
+            echo "⚠️ Full sync returned HTTP $HTTP_CODE"
+            echo "Response: $(cat /tmp/sync_response.txt)"
+          fi
