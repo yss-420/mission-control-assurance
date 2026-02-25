@@ -4,7 +4,7 @@
       "id": "MC-001",
       "title": "Welcome to Mission Control",
       "description": "This is your first task! Move it to 'In Progress' to see how the system works. Cal will automatically start working on any task you move to that column.",
-      "status": "backlog",
+      "status": "in_progress",
       "priority": "medium",
       "createdAt": "2026-02-25T21:00:00Z",
       "subtasks": [
