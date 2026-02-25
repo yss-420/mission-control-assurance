@@ -1,0 +1,31 @@
+{
+  "tasks": [
+    {
+      "id": "MC-001",
+      "title": "Welcome to Mission Control",
+      "description": "This is your first task! Move it to 'In Progress' to see how the system works. Cal will automatically start working on any task you move to that column.",
+      "status": "backlog",
+      "priority": "medium",
+      "createdAt": "2026-02-25T21:00:00Z",
+      "subtasks": [
+        {
+          "id": "sub_001",
+          "title": "Review Mission Control setup",
+          "done": false
+        },
+        {
+          "id": "sub_002",
+          "title": "Test task assignment workflow",
+          "done": false
+        }
+      ],
+      "dod": "You understand how to create, assign, and track tasks via the dashboard",
+      "comments": []
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2026-02-25T21:00:00Z",
+    "team": ["Manav", "Stephen", "Alex"]
+  }
+}
