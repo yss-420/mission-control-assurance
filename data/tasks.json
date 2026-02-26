@@ -4,7 +4,7 @@
       "id": "MC-001",
       "title": "Welcome to Mission Control",
       "description": "This is your first task! Move it to 'In Progress' to see how the system works. Cal will automatically start working on any task you move to that column.",
-      "status": "in_progress",
+      "status": "done",
       "priority": "medium",
       "createdAt": "2026-02-25T21:00:00Z",
       "subtasks": [
@@ -20,13 +20,18 @@
         }
       ],
       "dod": "You understand how to create, assign, and track tasks via the dashboard",
-      "comments": []
+      "comments": [
+        {
+          "timestamp": "2026-02-26T21:34:16Z",
+          "text": "Task understood and Mission Control workflow fully operational"
+        }
+      ]
     },
     {
       "id": "MC-1772140852",
       "title": "Test automated task creation",
       "description": "This task was created automatically by Cal via GitHub API to test the integration.",
-      "status": "in_progress",
+      "status": "review",
       "priority": "high",
       "createdAt": "2026-02-26T21:20:52Z",
       "subtasks": [],
@@ -35,6 +40,10 @@
         {
           "timestamp": "2026-02-26T21:20:52Z",
           "text": "Task created by Cal via Telegram"
+        },
+        {
+          "timestamp": "2026-02-26T21:33:34Z",
+          "text": "Task completed successfully - automation verified"
         }
       ]
     }
