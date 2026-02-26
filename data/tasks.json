@@ -21,11 +21,31 @@
       ],
       "dod": "You understand how to create, assign, and track tasks via the dashboard",
       "comments": []
+    },
+    {
+      "id": "MC-1772140852",
+      "title": "Test automated task creation",
+      "description": "This task was created automatically by Cal via GitHub API to test the integration.",
+      "status": "in_progress",
+      "priority": "high",
+      "createdAt": "2026-02-26T21:20:52Z",
+      "subtasks": [],
+      "dod": "Task completed successfully",
+      "comments": [
+        {
+          "timestamp": "2026-02-26T21:20:52Z",
+          "text": "Task created by Cal via Telegram"
+        }
+      ]
     }
   ],
   "metadata": {
     "version": "1.0.0",
     "lastUpdated": "2026-02-25T21:00:00Z",
-    "team": ["Manav", "Stephen", "Alex"]
+    "team": [
+      "Manav",
+      "Stephen",
+      "Alex"
+    ]
   }
 }
